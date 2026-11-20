@@ -87,6 +87,13 @@ h1 span{color:var(--accent)}
 .diag .val{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
 .diag .val.en{direction:ltr;text-align:left;font-family:var(--font-mono)}
 
+.level{display:grid;gap:8px;margin-top:14px}
+.level .btn{justify-self:start;padding:6px 12px;font-size:14px}
+.level-track{height:10px;background:var(--line);border-radius:5px;overflow:hidden}
+#levelBar{height:100%;width:0;background:var(--ok);transition:width .08s}
+.level .val{font-size:13px;color:var(--muted)}
+.mic-log{list-style:none;margin:0;padding:0;font-size:12px;color:var(--muted);display:grid;gap:3px;max-height:180px;overflow:auto}
+.mic-log:empty::before{content:"سيظهر هنا ما يحدث عند الضغط على زر السماع";}
 .settings{display:grid;gap:14px}
 .row{display:grid;gap:6px}
 .row label{display:flex;justify-content:space-between;font-size:14px}
@@ -155,6 +162,13 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       <li id="d-heard" data-s="idle"><span class="dot"></span><div><b>آخر ما سمعه</b><div class="val en">—</div></div></li>
       <li id="d-tr" data-s="idle"><span class="dot"></span><div><b>خدمة الترجمة</b><div class="val">لم تُجرَّب</div></div></li>
     </ul>
+    <div class="level">
+      <button id="levelBtn" class="btn">اختبار الميكروفون</button>
+      <div class="level-track"><div id="levelBar"></div></div>
+      <div id="levelOut" class="val"></div>
+    </div>
+    <h2 style="margin-top:14px">سجل الميكروفون</h2>
+    <ul id="micLog" class="mic-log"></ul>
   </div>
 
   <div class="card">
@@ -516,7 +530,14 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 
   /* ---------- microphone ---------- */
   const isStandalone = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
-  let micOn = false, micFails = 0, micStartedAt = 0;
+  let micOn = false, micFails = 0, micStartedAt = 0, gotResult = false;
+  let useContinuous = store.get('continuous', true);
+  function mlog(msg){
+    const ul = $('#micLog'), li = document.createElement('li');
+    const t = new Date(); li.textContent = t.toTimeString().slice(0, 8) + '  ' + msg;
+    ul.prepend(li); while(ul.children.length > 12) ul.lastChild.remove();
+    if(msg.indexOf('أول نص') === 0) store.set('continuous', useContinuous);
+  }
   function micButton(state){
     const b = $('#micBtn');
     if(state === 'on'){ b.textContent = '🎤 يسمع… (إيقاف)'; b.className = 'btn mic-on'; }
@@ -538,15 +559,22 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       return;
     }
     if(rec){ rec.onend = null; try{ rec.abort(); }catch{} }
-    micOn = true; micFails = 0;
+    micOn = true; micFails = 0; micStartedAt = 0; gotResult = false;
+    makeRec(SR);
+    try{ rec.start(); mlog('طلب بدء السماع (' + (rec.continuous ? 'متواصل' : 'جملة جملة') + ')'); diag('mic','busy','يبدأ…'); micButton('on'); }
+    catch(e){ mlog('فشل البدء: ' + (e && (e.name + ' ' + e.message) || e)); diag('mic','bad','لم يبدأ: ' + (e && e.message || e)); micButton('off'); micOn = false; }
+  }
+  function makeRec(SR){
     rec = new SR();
-    rec.lang = 'en-US'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+    rec.lang = 'en-US'; rec.continuous = useContinuous; rec.interimResults = true; rec.maxAlternatives = 1;
     let lastInterim = 0, lastInterimText = '';
-    rec.onstart = () => { micStartedAt = Date.now(); diag('mic','ok','يستمع الآن'); micButton('on'); };
-    rec.onaudiostart = () => diag('mic','ok','يستقبل صوت');
-    rec.onspeechstart = () => diag('mic','ok','يسمع كلام…');
+    rec.onstart = () => { micStartedAt = Date.now(); mlog('بدأ السماع'); diag('mic','ok','يستمع الآن'); micButton('on'); };
+    rec.onaudiostart = () => { mlog('وصل صوت من الميكروفون'); diag('mic','ok','يستقبل صوت'); };
+    rec.onsoundstart = () => mlog('يسمع أصوات');
+    rec.onspeechstart = () => { mlog('يسمع كلام'); diag('mic','ok','يسمع كلام…'); };
     rec.onresult = (e) => {
       micFails = 0;
+      if(!gotResult){ gotResult = true; mlog('أول نص وصل ✓'); }
       for(let i = e.resultIndex; i < e.results.length; i++){
         const r = e.results[i], t = r[0].transcript.trim();
         if(!t) continue;
@@ -562,6 +590,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       }
     };
     rec.onerror = (e) => {
+      mlog('خطأ: ' + e.error + (e.message ? ' — ' + e.message : ''));
       if(e.error === 'not-allowed'){
         // first start refused = permission; a refused automatic restart just needs a tap
         if(Date.now() - micStartedAt > 3000 && micStartedAt){ diag('mic','busy','توقف. اضغط زر السماع'); micButton('tap'); }
@@ -578,19 +607,63 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       }
     };
     rec.onend = () => {
+      mlog('انتهى السماع');
       if(!micOn) return;
       micFails++;
-      if(micFails > 6){ diag('mic','busy','توقف. اضغط زر السماع'); micButton('tap'); micOn = false; return; }
+      // Safari sometimes ends "continuous" listening at once with no text: switch to sentence-by-sentence mode
+      if(!gotResult && micFails === 2){ useContinuous = !useContinuous; mlog('تجربة الطريقة الأخرى: ' + (useContinuous ? 'متواصل' : 'جملة جملة')); }
+      if(micFails > 8){ diag('mic','busy','توقف. اضغط زر السماع'); micButton('tap'); micOn = false; return; }
       setTimeout(() => {
-        if(!micOn || !rec) return;
-        try{ rec.start(); }
-        catch(err){ diag('mic','busy','توقف. اضغط زر السماع'); micButton('tap'); micOn = false; }
+        if(!micOn) return;
+        try{
+          const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if(rec.continuous !== useContinuous) makeRec(SR);
+          rec.start();
+        }catch(err){ mlog('لم يرجع: ' + (err && err.name || err)); diag('mic','busy','توقف. اضغط زر السماع'); micButton('tap'); micOn = false; }
       }, 200);
     };
-    try{ rec.start(); diag('mic','busy','يبدأ…'); micButton('on'); }
-    catch(e){ diag('mic','bad','لم يبدأ: ' + (e && e.message || e)); micButton('off'); micOn = false; }
   }
-  $('#micBtn').onclick = () => { showError(''); micOn ? stopMic() : startMic(); };
+  $('#micBtn').addEventListener('click', () => {
+    mlog('ضغطت زر السماع');
+    showError('');
+    try{ micOn ? stopMic() : startMic(); }
+    catch(e){ mlog('خطأ غير متوقع: ' + (e && e.message || e)); showError('خطأ: ' + (e && e.message || e)); }
+  });
+
+  /* ---------- mic level test (is sound reaching the iPad at all?) ---------- */
+  $('#levelBtn').addEventListener('click', async () => {
+    const btn = $('#levelBtn'), bar = $('#levelBar');
+    if(micOn) stopMic();
+    btn.disabled = true; btn.textContent = 'يختبر ٥ ثوانٍ…';
+    let s = null, ctx = null;
+    try{
+      s = await navigator.mediaDevices.getUserMedia({audio:true});
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC(); await ctx.resume();
+      const an = ctx.createAnalyser(); an.fftSize = 512;
+      ctx.createMediaStreamSource(s).connect(an);
+      const buf = new Uint8Array(an.fftSize); let peak = 0; const end = Date.now() + 5000;
+      mlog('اختبار الميكروفون بدأ');
+      await new Promise(done => {
+        (function tick(){
+          an.getByteTimeDomainData(buf);
+          let m = 0; for(const v of buf) m = Math.max(m, Math.abs(v - 128));
+          const lvl = Math.min(100, Math.round(m / 128 * 300)); peak = Math.max(peak, lvl);
+          bar.style.width = lvl + '%';
+          Date.now() < end ? requestAnimationFrame(tick) : done();
+        })();
+      });
+      mlog('أعلى مستوى صوت: ' + peak + '%');
+      $('#levelOut').textContent = peak > 8 ? 'الميكروفون يسمع ✓ (' + peak + '%)' : 'الميكروفون لا يلتقط صوتاً (' + peak + '%)';
+    }catch(e){
+      mlog('اختبار الميكروفون فشل: ' + (e && e.name || e));
+      $('#levelOut').textContent = 'لم يُسمح بالميكروفون: ' + (e && e.name || e);
+    }finally{
+      if(s) s.getTracks().forEach(t => t.stop());
+      if(ctx) ctx.close().catch(() => {});
+      bar.style.width = '0%'; btn.disabled = false; btn.textContent = 'اختبار الميكروفون';
+    }
+  });
   if(isStandalone) diag('mic','busy','افتح الرابط من Safari حتى يعمل الصوت');
 
   /* ---------- start / stop ---------- */
