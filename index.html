@@ -57,6 +57,17 @@ h1 span{color:var(--accent)}
 #box{position:absolute;border:3px solid var(--accent);border-radius:6px;background:rgba(255,159,28,.12);pointer-events:none}
 .cam .hint{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--muted);padding:20px;font-size:15px;pointer-events:none}
 .hint-line{font-size:13px;color:var(--muted);margin:10px 0 0}
+.cam-sub{position:absolute;left:4%;right:4%;bottom:5%;text-align:center;pointer-events:none;display:grid;gap:4px;justify-items:center}
+.cam-sub .s-ar{font-size:calc(var(--sub-size)*.75);line-height:1.4;font-weight:700;background:rgba(0,0,0,.72);padding:4px 14px;border-radius:8px;text-wrap:balance;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.cam-sub .s-en{direction:ltr;font-family:var(--font-mono);font-size:13px;color:#d9dee8;background:rgba(0,0,0,.6);padding:2px 10px;border-radius:6px}
+.cam-sub .s-ar:empty,.cam-sub .s-en:empty{display:none}
+.cam-tools{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.cam-tools .btn{padding:6px 12px;font-size:14px}
+#camCard.full{position:fixed;inset:0;z-index:50;border-radius:0;border:0;background:#000;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);display:flex;flex-direction:column}
+#camCard.full h2,#camCard.full .hint-line,#camCard.full #proc{display:none}
+#camCard.full .cam-tools{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:calc(env(safe-area-inset-left,0px) + 10px);z-index:2;margin:0}
+#camCard.full .cam{flex:1;aspect-ratio:auto;border-radius:0}
+#camCard.full .cam-sub .s-ar{font-size:var(--sub-size)}
 #proc{display:block;width:100%;max-height:70px;object-fit:contain;background:#fff;border-radius:6px;margin-top:6px}
 
 /* Status list */
@@ -106,10 +117,15 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <div class="grid">
   <div class="card" id="camCard">
     <h2>الكاميرا: ارسم بإصبعك مستطيلاً حول مكان الكتابة في التلفزيون</h2>
+    <div class="cam-tools">
+      <button id="fullBtn" class="btn">⛶ ملء الشاشة</button>
+      <button id="boxBtn" class="btn">إظهار مربع القراءة</button>
+    </div>
     <div class="cam" id="camWrap">
       <video id="video" playsinline muted autoplay></video>
       <div id="camHint" class="hint">الكاميرا ستظهر هنا بعد الضغط على «ابدأ الترجمة»</div>
       <div id="overlay"><div id="box"></div></div>
+      <div class="cam-sub" aria-hidden="true"><div class="s-ar" id="camAr"></div><div class="s-en" id="camEn"></div></div>
     </div>
     <p class="hint-line">هذا ما يقرأه البرنامج. الأفضل: كلام أسود واضح على خلفية بيضاء</p>
     <canvas id="proc" width="10" height="10"></canvas>
@@ -194,7 +210,30 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     el.classList.remove('fresh'); void el.offsetWidth; el.classList.add('fresh');
     $('#en').textContent = en || '';
     $('#src').textContent = from === 'mic' ? 'من الصوت 🎤' : 'من الكتابة 📷';
+    $('#camAr').textContent = ar;
+    $('#camEn').textContent = '';
   }
+  // words heard but not translated yet: show them on the picture straight away
+  function showLive(en){
+    $('#camEn').textContent = en;
+    $('#en').textContent = en;
+  }
+
+  /* ---------- full screen picture + reading box toggle ---------- */
+  let boxVisible = true;
+  $('#fullBtn').onclick = () => {
+    const card = $('#camCard'), on = !card.classList.contains('full');
+    card.classList.toggle('full', on);
+    $('#fullBtn').textContent = on ? '✕ خروج' : '⛶ ملء الشاشة';
+    if(on && S.hideCam){ S.hideCam = false; $('#hideCam').checked = false; $('#camWrap').hidden = false; }
+    setTimeout(drawBox, 50);
+  };
+  $('#boxBtn').onclick = () => {
+    boxVisible = !boxVisible;
+    box.style.visibility = boxVisible ? 'visible' : 'hidden';
+    $('#boxBtn').textContent = boxVisible ? 'إخفاء مربع القراءة' : 'إظهار مربع القراءة';
+  };
+  $('#boxBtn').textContent = 'إخفاء مربع القراءة';
   function addHistory(ar, en){
     const ul = $('#history');
     const empty = ul.querySelector('.empty'); if(empty) empty.remove();
@@ -425,17 +464,20 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     if(!SR){ diag('mic','bad','غير مدعوم في هذا المتصفح'); return; }
     rec = new SR();
     rec.lang = 'en-US'; rec.continuous = true; rec.interimResults = true;
-    let lastInterim = 0;
+    let lastInterim = 0, lastInterimText = '';
     rec.onstart = () => diag('mic','ok','يستمع الآن');
     rec.onresult = (e) => {
       for(let i = e.resultIndex; i < e.results.length; i++){
         const r = e.results[i], t = r[0].transcript.trim();
         if(!t) continue;
         diag('heard','ok', t);
-        if(r.isFinal) translateAndShow(t, true, 'mic');
+        if(r.isFinal){ lastInterimText = ''; translateAndShow(t, true, 'mic'); }
         else{
+          showLive(t);
           const now = Date.now();
-          if(now - lastInterim > 700 && t.split(' ').length >= 3){ lastInterim = now; translateAndShow(t, false, 'mic'); }
+          if(now - lastInterim > 300 && t !== lastInterimText && t.split(' ').length >= 2){
+            lastInterim = now; lastInterimText = t; translateAndShow(t, false, 'mic');
+          }
         }
       }
     };
