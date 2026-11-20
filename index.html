@@ -10,10 +10,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <style>
-/* Layout: one dark screen — the Arabic line is the hero, camera view and controls sit beside it */
+/* Layout: one dark screen — the Arabic line is the hero; camera, status and settings sit under it */
 :root{
   --bg:#0d1117; --panel:#161c26; --line:#273142; --fg:#eef2f8; --muted:#8b97ab;
-  --accent:#ff9f1c; --ok:#3ddc97; --bad:#ff5d73;
+  --accent:#ff9f1c; --ok:#3ddc97; --bad:#ff5d73; --warn:#ffd166;
   --font-ar:"IBM Plex Sans Arabic","Geeza Pro","Segoe UI",Tahoma,sans-serif;
   --font-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
   --sub-size:44px;
@@ -24,30 +24,24 @@ html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-ar);
   padding:env(safe-area-inset-top,0) max(16px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0) max(16px,env(safe-area-inset-left,0px));
   -webkit-tap-highlight-color:transparent}
-button,input,select{font:inherit;color:inherit}
+button,input{font:inherit;color:inherit}
 [hidden]{display:none!important}
 
 header{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding-block:12px}
 h1{font-size:20px;margin:0;font-weight:700;margin-inline-end:auto}
 h1 span{color:var(--accent)}
-.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:3px}
-.seg button{border:0;background:none;padding:8px 14px;border-radius:9px;cursor:pointer;color:var(--muted);font-weight:600}
-.seg button[aria-pressed="true"]{background:var(--line);color:var(--fg)}
-.btn{border:1px solid var(--line);background:var(--panel);padding:9px 16px;border-radius:12px;cursor:pointer;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:999px;font-weight:600;cursor:pointer;user-select:none}
+.chip input{width:18px;height:18px;accent-color:var(--accent);margin:0}
+.btn{border:1px solid var(--line);background:var(--panel);padding:9px 18px;border-radius:12px;cursor:pointer;font-weight:700}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#1a1205}
 .btn.stop{background:var(--bad);border-color:var(--bad);color:#fff}
-.btn:focus-visible,.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.status{display:inline-flex;align-items:center;gap:7px;font-size:14px;color:var(--muted)}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
-.status.live .dot{background:var(--ok);box-shadow:0 0 0 4px rgba(61,220,151,.18)}
-.status.err .dot{background:var(--bad)}
-.status.busy .dot{background:var(--accent)}
+.btn:focus-visible,.chip:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 
-/* Hero subtitle */
 .subtitle{background:#000;border:1px solid var(--line);border-radius:16px;padding:22px 24px;min-height:150px;
   display:flex;flex-direction:column;justify-content:center;gap:10px}
 #ar{font-size:var(--sub-size);line-height:1.45;font-weight:700;text-wrap:balance;margin:0;min-height:1.45em}
 #en{direction:ltr;text-align:left;font-family:var(--font-mono);font-size:15px;color:var(--muted);margin:0;min-height:1.3em;overflow-wrap:anywhere}
+#src{font-size:12px;color:var(--muted);margin:0}
 #ar.fresh{animation:pop .25s ease-out}
 @keyframes pop{from{opacity:.35}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){#ar.fresh{animation:none}}
@@ -61,15 +55,19 @@ h1 span{color:var(--accent)}
 .cam video{width:100%;height:100%;object-fit:contain;display:block}
 #overlay{position:absolute;inset:0;touch-action:none;cursor:crosshair}
 #box{position:absolute;border:3px solid var(--accent);border-radius:6px;background:rgba(255,159,28,.12);pointer-events:none}
-#box::after{content:"منطقة الترجمة";position:absolute;top:-26px;right:0;font-size:12px;background:var(--accent);color:#1a1205;padding:2px 8px;border-radius:6px;font-weight:700}
-.cam .hint{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--muted);padding:20px;font-size:15px}
+.cam .hint{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--muted);padding:20px;font-size:15px;pointer-events:none}
 .hint-line{font-size:13px;color:var(--muted);margin:10px 0 0}
-#proc{display:block;width:100%;max-height:70px;object-fit:contain;background:#fff;border-radius:6px;margin-top:10px}
+#proc{display:block;width:100%;max-height:70px;object-fit:contain;background:#fff;border-radius:6px;margin-top:6px}
 
-.mic{display:grid;place-items:center;gap:10px;text-align:center;padding:30px 10px;color:var(--muted)}
-.mic .big{font-size:56px;line-height:1}
-.mic.on .big{animation:pulse 1.4s infinite}
-@keyframes pulse{50%{opacity:.4}}
+/* Status list */
+.diag{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.diag li{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:start;font-size:14px}
+.diag .dot{width:10px;height:10px;border-radius:50%;background:var(--muted);margin-top:6px}
+.diag li[data-s="ok"] .dot{background:var(--ok)}
+.diag li[data-s="bad"] .dot{background:var(--bad)}
+.diag li[data-s="busy"] .dot{background:var(--warn)}
+.diag .val{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.diag .val.en{direction:ltr;text-align:left;font-family:var(--font-mono)}
 
 .settings{display:grid;gap:14px}
 .row{display:grid;gap:6px}
@@ -85,19 +83,16 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 #history .h-en{direction:ltr;text-align:left;font-size:12px;color:var(--muted);font-family:var(--font-mono);overflow-wrap:anywhere}
 #history .empty{color:var(--muted);font-size:14px;border:0}
 .note{font-size:13px;color:var(--muted);line-height:1.7;margin:0}
-.err-box{background:rgba(255,93,115,.12);border:1px solid var(--bad);color:#ffd5db;padding:10px 14px;border-radius:10px;font-size:14px}
+.err-box{background:rgba(255,93,115,.12);border:1px solid var(--bad);color:#ffd5db;padding:10px 14px;border-radius:10px;font-size:14px;margin-bottom:10px}
 </style>
 </head>
 <body>
 
 <header>
   <h1>مترجم <span>الألعاب</span></h1>
-  <div class="seg" role="group" aria-label="طريقة الترجمة">
-    <button id="modeCam" aria-pressed="true">📷 الكاميرا</button>
-    <button id="modeMic" aria-pressed="false">🎤 الميكروفون</button>
-  </div>
+  <label class="chip"><input id="useCam" type="checkbox" checked> 📷 الكتابة</label>
+  <label class="chip"><input id="useMic" type="checkbox" checked> 🎤 الصوت</label>
   <button id="startBtn" class="btn primary">ابدأ الترجمة</button>
-  <span id="status" class="status"><span class="dot"></span><span id="statusText">جاهز</span></span>
 </header>
 
 <div id="errBox" class="err-box" hidden></div>
@@ -105,26 +100,31 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <section class="subtitle" aria-live="polite">
   <p id="ar">وجّه الكاميرا على التلفزيون، ثم اضغط «ابدأ الترجمة»</p>
   <p id="en">Turn on English subtitles in the game</p>
+  <p id="src"></p>
 </section>
 
 <div class="grid">
   <div class="card" id="camCard">
-    <h2>الكاميرا: ارسم بإصبعك مستطيلاً حول مكان الترجمة في الشاشة</h2>
-    <div class="cam">
+    <h2>الكاميرا: ارسم بإصبعك مستطيلاً حول مكان الكتابة في التلفزيون</h2>
+    <div class="cam" id="camWrap">
       <video id="video" playsinline muted autoplay></video>
       <div id="camHint" class="hint">الكاميرا ستظهر هنا بعد الضغط على «ابدأ الترجمة»</div>
       <div id="overlay"><div id="box"></div></div>
     </div>
-    <p class="hint-line">هذا ما يقرأه البرنامج (الأفضل: كلام أسود واضح على أبيض):</p>
+    <p class="hint-line">هذا ما يقرأه البرنامج. الأفضل: كلام أسود واضح على خلفية بيضاء</p>
     <canvas id="proc" width="10" height="10"></canvas>
   </div>
 
-  <div class="card" id="micCard" hidden>
-    <h2>الميكروفون</h2>
-    <div class="mic" id="micView">
-      <div class="big">🎤</div>
-      <div id="micText">ضع الآيباد قريباً من سماعة التلفزيون</div>
-    </div>
+  <div class="card">
+    <h2>حالة الأجزاء (صوّرها لي إذا ما اشتغلت الترجمة)</h2>
+    <ul class="diag">
+      <li id="d-cam" data-s="idle"><span class="dot"></span><div><b>الكاميرا</b><div class="val">لم تبدأ</div></div></li>
+      <li id="d-ocr" data-s="idle"><span class="dot"></span><div><b>قارئ الكتابة</b><div class="val">لم يبدأ</div></div></li>
+      <li id="d-read" data-s="idle"><span class="dot"></span><div><b>آخر ما قرأته الكاميرا</b><div class="val en">—</div></div></li>
+      <li id="d-mic" data-s="idle"><span class="dot"></span><div><b>الميكروفون</b><div class="val">لم يبدأ</div></div></li>
+      <li id="d-heard" data-s="idle"><span class="dot"></span><div><b>آخر ما سمعه</b><div class="val en">—</div></div></li>
+      <li id="d-tr" data-s="idle"><span class="dot"></span><div><b>خدمة الترجمة</b><div class="val">لم تُجرَّب</div></div></li>
+    </ul>
   </div>
 
   <div class="card">
@@ -134,17 +134,18 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <label for="fontSize">حجم الخط <output id="fontSizeOut">44</output></label>
         <input id="fontSize" type="range" min="24" max="90" step="2" value="44">
       </div>
-      <div class="row" data-cam>
+      <label class="check"><input id="autoThr" type="checkbox" checked> ضبط تلقائي لوضوح الكتابة (أنصح به)</label>
+      <div class="row" id="thrRow">
         <label for="threshold">فصل الكلام عن الخلفية <output id="thresholdOut">170</output></label>
-        <input id="threshold" type="range" min="80" max="245" step="5" value="170">
+        <input id="threshold" type="range" min="60" max="245" step="5" value="170">
       </div>
-      <div class="row" data-cam>
-        <label for="minConf">دقة القراءة المطلوبة <output id="minConfOut">60</output></label>
-        <input id="minConf" type="range" min="30" max="90" step="5" value="60">
+      <label class="check" id="invRow"><input id="invert" type="checkbox"> الكتابة في اللعبة لونها غامق</label>
+      <div class="row">
+        <label for="minConf">دقة القراءة المطلوبة <output id="minConfOut">40</output></label>
+        <input id="minConf" type="range" min="20" max="90" step="5" value="40">
       </div>
-      <label class="check" data-cam><input id="invert" type="checkbox"> الترجمة في اللعبة لونها غامق (عكس الألوان)</label>
-      <label class="check" data-cam><input id="hideCam" type="checkbox"> إخفاء صورة الكاميرا (تبقى الترجمة فقط)</label>
-      <p class="note">نصيحة: كبّر حجم الترجمة الإنجليزية داخل اللعبة وفعّل خلفية لها، وثبّت الآيباد حتى لا يتحرك.</p>
+      <label class="check"><input id="hideCam" type="checkbox"> إخفاء صورة الكاميرا</label>
+      <p class="note">نصائح: كبّر حجم الترجمة الإنجليزية داخل اللعبة وفعّل خلفيتها، ثبّت الآيباد، وقرّبه من التلفزيون حتى تكون الكتابة كبيرة في الصورة.</p>
     </div>
   </div>
 
@@ -159,312 +160,320 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 (() => {
   const $ = s => document.querySelector(s);
   const store = {
-    get(k, d){ try{ const v = localStorage.getItem('gt_'+k); return v === null ? d : JSON.parse(v); }catch{ return d; } },
-    set(k, v){ try{ localStorage.setItem('gt_'+k, JSON.stringify(v)); }catch{} }
+    get(k, d){ try{ const v = localStorage.getItem('gt2_'+k); return v === null ? d : JSON.parse(v); }catch{ return d; } },
+    set(k, v){ try{ localStorage.setItem('gt2_'+k, JSON.stringify(v)); }catch{} }
   };
-
+  const DEFAULT_REGION = {x:0.1, y:0.7, w:0.8, h:0.25};
   const S = {
-    mode: store.get('mode', 'camera'),
-    running: false,
-    region: store.get('region', {x:0.12, y:0.74, w:0.76, h:0.2}),
-    threshold: store.get('threshold', 170),
-    minConf: store.get('minConf', 60),
-    invert: store.get('invert', false),
-    fontSize: store.get('fontSize', 44),
-    hideCam: store.get('hideCam', false),
-    lastSrc: '',
-    seq: 0,
-    shown: 0,
-    cache: new Map(),
+    running:false,
+    useCam: store.get('useCam', true), useMic: store.get('useMic', true),
+    region: store.get('region', DEFAULT_REGION),
+    autoThr: store.get('autoThr', true), threshold: store.get('threshold', 170), invert: store.get('invert', false),
+    minConf: store.get('minConf', 40), fontSize: store.get('fontSize', 44), hideCam: store.get('hideCam', false),
+    lastOcr:'', recent:[], seq:0, shown:0, cache:new Map(),
   };
-
-  let stream = null, worker = null, rec = null, wakeLock = null, loopTimer = null;
+  let stream = null, worker = null, workerLoading = null, rec = null, wakeLock = null, loopTimer = null;
   const video = $('#video'), overlay = $('#overlay'), box = $('#box'), proc = $('#proc');
   const pctx = proc.getContext('2d', {willReadFrequently:true});
 
-  /* ---------- UI helpers ---------- */
-  function setStatus(text, kind){
-    $('#statusText').textContent = text;
-    $('#status').className = 'status' + (kind ? ' ' + kind : '');
+  /* ---------- status UI ---------- */
+  function diag(id, s, text){
+    const li = $('#d-'+id); if(!li) return;
+    li.dataset.s = s;
+    if(text !== undefined) li.querySelector('.val').textContent = text;
   }
   function showError(msg){
     const b = $('#errBox');
-    if(!msg){ b.hidden = true; return; }
-    b.textContent = msg; b.hidden = false;
+    if(!msg){ b.hidden = true; b.textContent=''; return; }
+    b.hidden = false;
+    const p = document.createElement('div'); p.textContent = msg; b.appendChild(p);
   }
-  function showLine(ar, en){
+  function showLine(ar, en, from){
     const el = $('#ar');
     el.textContent = ar;
     el.classList.remove('fresh'); void el.offsetWidth; el.classList.add('fresh');
     $('#en').textContent = en || '';
+    $('#src').textContent = from === 'mic' ? 'من الصوت 🎤' : 'من الكتابة 📷';
   }
   function addHistory(ar, en){
     const ul = $('#history');
     const empty = ul.querySelector('.empty'); if(empty) empty.remove();
     const li = document.createElement('li');
-    const a = document.createElement('div'); a.className = 'h-ar'; a.textContent = ar;
-    const e = document.createElement('div'); e.className = 'h-en'; e.textContent = en;
+    const a = document.createElement('div'); a.className='h-ar'; a.textContent = ar;
+    const e = document.createElement('div'); e.className='h-en'; e.textContent = en;
     li.append(a, e); ul.prepend(li);
     while(ul.children.length > 60) ul.lastChild.remove();
   }
 
-  /* ---------- Settings ---------- */
+  /* ---------- settings ---------- */
   function bindRange(id, key, apply){
     const input = $('#'+id), out = $('#'+id+'Out');
     input.value = S[key]; out.textContent = S[key]; apply && apply(S[key]);
-    input.addEventListener('input', () => {
-      S[key] = Number(input.value); out.textContent = S[key]; store.set(key, S[key]); apply && apply(S[key]);
-    });
+    input.addEventListener('input', () => { S[key] = Number(input.value); out.textContent = S[key]; store.set(key, S[key]); apply && apply(S[key]); });
   }
-  bindRange('fontSize', 'fontSize', v => document.documentElement.style.setProperty('--sub-size', v + 'px'));
+  function bindCheck(id, key, apply){
+    const input = $('#'+id); input.checked = S[key]; apply && apply(S[key]);
+    input.addEventListener('change', () => { S[key] = input.checked; store.set(key, S[key]); apply && apply(S[key]); });
+  }
+  bindRange('fontSize', 'fontSize', v => document.documentElement.style.setProperty('--sub-size', v+'px'));
   bindRange('threshold', 'threshold');
   bindRange('minConf', 'minConf');
-  $('#invert').checked = S.invert;
-  $('#invert').addEventListener('change', e => { S.invert = e.target.checked; store.set('invert', S.invert); });
-  $('#hideCam').checked = S.hideCam;
-  const applyHide = () => { document.querySelector('.cam').hidden = S.hideCam; };
-  applyHide();
-  $('#hideCam').addEventListener('change', e => { S.hideCam = e.target.checked; store.set('hideCam', S.hideCam); applyHide(); });
+  bindCheck('invert', 'invert');
+  bindCheck('autoThr', 'autoThr', v => { $('#thrRow').hidden = v; $('#invRow').hidden = v; });
+  bindCheck('hideCam', 'hideCam', v => { $('#camWrap').hidden = v; });
+  bindCheck('useCam', 'useCam', v => { $('#camCard').hidden = !v; });
+  bindCheck('useMic', 'useMic');
 
-  /* ---------- Mode switch ---------- */
-  function applyMode(){
-    const cam = S.mode === 'camera';
-    $('#modeCam').setAttribute('aria-pressed', cam);
-    $('#modeMic').setAttribute('aria-pressed', !cam);
-    $('#camCard').hidden = !cam;
-    $('#micCard').hidden = cam;
-    document.querySelectorAll('[data-cam]').forEach(el => el.hidden = !cam);
-  }
-  function switchMode(m){
-    if(S.mode === m) return;
-    const wasRunning = S.running;
-    if(wasRunning) stop();
-    S.mode = m; store.set('mode', m); applyMode();
-    if(wasRunning) start();
-  }
-  $('#modeCam').onclick = () => switchMode('camera');
-  $('#modeMic').onclick = () => switchMode('mic');
-  applyMode();
-
-  /* ---------- Translation ---------- */
+  /* ---------- translation ---------- */
   async function fetchJSON(url, ms){
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
-    try{ const r = await fetch(url, {signal: ctl.signal}); if(!r.ok) throw new Error(r.status); return await r.json(); }
+    try{ const r = await fetch(url, {signal:ctl.signal}); if(!r.ok) throw new Error('HTTP '+r.status); return await r.json(); }
     finally{ clearTimeout(t); }
   }
   async function translate(text){
     const key = text.toLowerCase();
     if(S.cache.has(key)) return S.cache.get(key);
-    let out = '';
+    let out = '', err1 = '', err2 = '';
     try{
-      const d = await fetchJSON('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ar&dt=t&q=' + encodeURIComponent(text), 4000);
-      out = (d[0] || []).map(p => p[0]).join('');
-    }catch(e){
+      const d = await fetchJSON('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ar&dt=t&q='+encodeURIComponent(text), 5000);
+      out = (d[0]||[]).map(p => p[0]).join('');
+    }catch(e){ err1 = String(e && e.message || e); }
+    if(!out){
       try{
-        const d = await fetchJSON('https://api.mymemory.translated.net/get?langpair=en|ar&q=' + encodeURIComponent(text), 5000);
+        const d = await fetchJSON('https://api.mymemory.translated.net/get?langpair=en|ar&q='+encodeURIComponent(text), 6000);
         out = d.responseData && d.responseData.translatedText || '';
-      }catch(e2){ out = ''; }
+      }catch(e){ err2 = String(e && e.message || e); }
     }
-    if(out){ S.cache.set(key, out); if(S.cache.size > 500) S.cache.delete(S.cache.keys().next().value); }
+    if(out){
+      diag('tr', 'ok', 'تعمل');
+      S.cache.set(key, out); if(S.cache.size > 500) S.cache.delete(S.cache.keys().next().value);
+    }else{
+      diag('tr', 'bad', 'لم تعمل: ' + (err1 || '-') + ' / ' + (err2 || '-'));
+    }
     return out;
   }
-  async function translateAndShow(text, final){
+  async function translateAndShow(text, final, from){
     const id = ++S.seq;
     const ar = await translate(text);
-    if(!ar){ setStatus('تعذّرت الترجمة، تأكد من الإنترنت', 'err'); return; }
-    if(id < S.shown) return;          // a newer line already shown
+    if(!ar || id < S.shown) return;
     S.shown = id;
-    showLine(ar, text);
-    if(final) addHistory(ar, text);
-    if(S.running) setStatus('يترجم الآن', 'live');
+    showLine(ar, text, from);
+    if(final){
+      const n = norm(text);
+      if(!S.recent.some(r => similar(r, n) > 0.75)){ addHistory(ar, text); S.recent.unshift(n); S.recent.length = Math.min(S.recent.length, 6); }
+    }
   }
 
-  /* ---------- Text similarity ---------- */
-  const norm = s => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  /* ---------- text helpers ---------- */
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
   function similar(a, b){
-    if(!a || !b) return 0;
-    if(a === b) return 1;
+    if(!a || !b) return 0; if(a === b) return 1;
     const m = a.length, n = b.length;
-    if(Math.abs(m - n) > Math.max(m, n) * 0.5) return 0;
-    let prev = Array.from({length: n + 1}, (_, j) => j);
+    if(Math.abs(m-n) > Math.max(m,n)*0.5) return 0;
+    let prev = Array.from({length:n+1}, (_, j) => j);
     for(let i = 1; i <= m; i++){
       const cur = [i];
-      for(let j = 1; j <= n; j++){
-        cur[j] = Math.min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + (a[i-1] === b[j-1] ? 0 : 1));
-      }
+      for(let j = 1; j <= n; j++) cur[j] = Math.min(prev[j]+1, cur[j-1]+1, prev[j-1] + (a[i-1] === b[j-1] ? 0 : 1));
       prev = cur;
     }
-    return 1 - prev[n] / Math.max(m, n);
+    return 1 - prev[n]/Math.max(m,n);
+  }
+  function cleanOCR(t){
+    return t.replace(/[\r\n]+/g,' ').replace(/[|_~=<>{}\[\]\\\/@#$%^&*+`]/g,' ').replace(/\s+/g,' ').trim();
+  }
+  // keep only words that look like real English (letters, at most one odd char)
+  function realWords(t){
+    return t.split(' ').filter(w => { const l = w.replace(/[^a-zA-Z]/g,''); return l.length >= 2 && l.length >= w.length - 2 && /[aeiouyAEIOUY]/.test(l); });
   }
 
-  /* ---------- Camera + region ---------- */
+  /* ---------- camera + region ---------- */
   function videoRect(){
     const r = overlay.getBoundingClientRect();
     const vw = video.videoWidth || 16, vh = video.videoHeight || 9;
-    const s = Math.min(r.width / vw, r.height / vh);
-    const w = vw * s, h = vh * s;
-    return {left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, w, h, ox: (r.width - w) / 2, oy: (r.height - h) / 2};
+    const s = Math.min(r.width/vw, r.height/vh), w = vw*s, h = vh*s;
+    return {left:r.left+(r.width-w)/2, top:r.top+(r.height-h)/2, w, h, ox:(r.width-w)/2, oy:(r.height-h)/2};
   }
   function drawBox(){
     const v = videoRect(), g = S.region;
-    box.style.left = (v.ox + g.x * v.w) + 'px';
-    box.style.top = (v.oy + g.y * v.h) + 'px';
-    box.style.width = (g.w * v.w) + 'px';
-    box.style.height = (g.h * v.h) + 'px';
+    box.style.left = (v.ox + g.x*v.w)+'px'; box.style.top = (v.oy + g.y*v.h)+'px';
+    box.style.width = (g.w*v.w)+'px'; box.style.height = (g.h*v.h)+'px';
   }
   let drag = null;
-  const clamp = (v) => Math.max(0, Math.min(1, v));
-  function toFrac(e){
-    const v = videoRect();
-    return {x: clamp((e.clientX - v.left) / v.w), y: clamp((e.clientY - v.top) / v.h)};
-  }
+  const clamp = v => Math.max(0, Math.min(1, v));
+  const toFrac = e => { const v = videoRect(); return {x:clamp((e.clientX-v.left)/v.w), y:clamp((e.clientY-v.top)/v.h)}; };
   overlay.addEventListener('pointerdown', e => { drag = toFrac(e); overlay.setPointerCapture(e.pointerId); });
   overlay.addEventListener('pointermove', e => {
-    if(!drag) return;
-    const p = toFrac(e);
-    S.region = {x: Math.min(drag.x, p.x), y: Math.min(drag.y, p.y), w: Math.abs(p.x - drag.x), h: Math.abs(p.y - drag.y)};
-    drawBox();
+    if(!drag) return; const p = toFrac(e);
+    S.region = {x:Math.min(drag.x,p.x), y:Math.min(drag.y,p.y), w:Math.abs(p.x-drag.x), h:Math.abs(p.y-drag.y)}; drawBox();
   });
   overlay.addEventListener('pointerup', () => {
     if(!drag) return; drag = null;
-    if(S.region.w < 0.05 || S.region.h < 0.03) S.region = store.get('region', {x:0.12, y:0.74, w:0.76, h:0.2});
-    store.set('region', S.region); drawBox(); S.lastSrc = '';
+    if(S.region.w < 0.05 || S.region.h < 0.03) S.region = store.get('region', DEFAULT_REGION);
+    store.set('region', S.region); drawBox(); S.lastOcr = '';
   });
   window.addEventListener('resize', drawBox);
   video.addEventListener('loadedmetadata', drawBox);
   drawBox();
 
+  function loadWorker(){
+    if(worker) return Promise.resolve(worker);
+    if(workerLoading) return workerLoading;
+    if(typeof Tesseract === 'undefined'){ diag('ocr','bad','لم يتحمّل. تأكد من الإنترنت ثم أعد تحميل الصفحة'); return Promise.reject(new Error('Tesseract missing')); }
+    diag('ocr','busy','يتحمّل… (أول مرة قد يأخذ دقيقة)');
+    workerLoading = Tesseract.createWorker('eng', 1, {
+      logger: m => { if(m && m.status && m.progress != null && !worker) diag('ocr','busy','يتحمّل… ' + Math.round(m.progress*100) + '%'); }
+    }).then(async w => {
+      await w.setParameters({ tessedit_pageseg_mode:'6', preserve_interword_spaces:'1' });
+      worker = w; diag('ocr','ok','جاهز'); return w;
+    }).catch(e => { workerLoading = null; diag('ocr','bad','فشل التحميل: ' + (e && e.message || e)); throw e; });
+    return workerLoading;
+  }
+  // start downloading the reader right away so it is ready when the user presses start
+  if(S.useCam) loadWorker().catch(() => {});
+
   async function startCamera(){
-    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      throw new Error('الكاميرا غير متاحة. افتح الأداة من رابط يبدأ بـ https في متصفح Safari.');
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+      throw new Error('الكاميرا غير متاحة. افتح الرابط في Safari مباشرة.');
+    diag('cam','busy','تطلب الإذن…');
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}, audio:false});
+    }catch(e){
+      diag('cam','bad','مرفوضة: ' + (e && e.name || e));
+      throw new Error(e && e.name === 'NotAllowedError'
+        ? 'لم يُسمح بالكاميرا. من الإعدادات ← Safari ← الكاميرا اختر «سماح» ثم أعد تحميل الصفحة.'
+        : 'تعذّر تشغيل الكاميرا: ' + (e && (e.message || e.name) || e));
     }
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {facingMode: {ideal: 'environment'}, width: {ideal: 1920}, height: {ideal: 1080}}, audio: false
-    });
     video.srcObject = stream;
-    await video.play();
+    try{ await video.play(); }catch{}
     $('#camHint').hidden = true;
     drawBox();
-    if(!worker){
-      setStatus('يحمّل قارئ النصوص (أول مرة فقط)…', 'busy');
-      worker = await Tesseract.createWorker('eng', 1);
-      await worker.setParameters({
-        tessedit_pageseg_mode: '6',
-        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,'!?:;-\"…()"
-      });
+    diag('cam','ok','تعمل');
+    await loadWorker();
+  }
+
+  function otsu(hist, total){
+    let sum = 0; for(let i = 0; i < 256; i++) sum += i*hist[i];
+    let sumB = 0, wB = 0, best = 0, t = 128;
+    for(let i = 0; i < 256; i++){
+      wB += hist[i]; if(!wB) continue;
+      const wF = total - wB; if(!wF) break;
+      sumB += i*hist[i];
+      const mB = sumB/wB, mF = (sum-sumB)/wF, between = wB*wF*(mB-mF)*(mB-mF);
+      if(between > best){ best = between; t = i; }
     }
+    return t;
   }
 
   function grabFrame(){
     const vw = video.videoWidth, vh = video.videoHeight;
     if(!vw) return false;
     const g = S.region;
-    const sx = g.x * vw, sy = g.y * vh, sw = Math.max(8, g.w * vw), sh = Math.max(8, g.h * vh);
-    const scale = Math.min(2.5, 1400 / sw);
-    const cw = Math.round(sw * scale), ch = Math.round(sh * scale);
+    const sx = g.x*vw, sy = g.y*vh, sw = Math.max(8, g.w*vw), sh = Math.max(8, g.h*vh);
+    const scale = Math.min(3, 1600/sw);
+    const cw = Math.round(sw*scale), ch = Math.round(sh*scale);
     if(proc.width !== cw || proc.height !== ch){ proc.width = cw; proc.height = ch; }
+    pctx.imageSmoothingEnabled = true;
     pctx.drawImage(video, sx, sy, sw, sh, 0, 0, cw, ch);
-    const img = pctx.getImageData(0, 0, cw, ch), d = img.data, thr = S.threshold;
-    for(let i = 0; i < d.length; i += 4){
-      const l = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-      let ink = l > thr;                 // bright subtitle text becomes ink
-      if(S.invert) ink = !ink;
-      const v = ink ? 0 : 255;
+    const img = pctx.getImageData(0, 0, cw, ch), d = img.data, n = cw*ch;
+    const lum = new Uint8ClampedArray(n), sat = new Uint8ClampedArray(n), hist = new Uint32Array(256);
+    for(let i = 0, p = 0; p < n; i += 4, p++){
+      const r = d[i], g = d[i+1], b = d[i+2];
+      const l = (0.299*r + 0.587*g + 0.114*b) | 0;
+      lum[p] = l; sat[p] = Math.max(r, g, b) - Math.min(r, g, b); hist[l]++;
+    }
+    let mask;
+    if(S.autoThr){
+      // game subtitles are near-white: very bright AND colourless. Keep only those pixels.
+      let acc = 0, p98 = 255;
+      for(let i = 255; i >= 0; i--){ acc += hist[i]; if(acc >= n*0.02){ p98 = i; break; } }
+      const thr = Math.max(150, p98 - 45);
+      mask = p => lum[p] >= thr && sat[p] < 60;
+    }else{
+      const thr = S.threshold;
+      mask = S.invert ? p => lum[p] <= thr : p => lum[p] > thr;
+    }
+    for(let i = 0, p = 0; p < n; i += 4, p++){
+      const v = mask(p) ? 0 : 255;
       d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
     }
     pctx.putImageData(img, 0, 0);
     return true;
   }
 
-  function cleanOCR(t){
-    return t.replace(/[\r\n]+/g, ' ').replace(/[|_~=<>{}\[\]\\\/@#$%^&*+`]/g, ' ').replace(/\s+/g, ' ').trim();
-  }
-  function looksReal(t){
-    const words = t.split(' ').filter(w => /[a-zA-Z]{2,}/.test(w));
-    return words.length >= 1 && t.replace(/[^a-zA-Z]/g, '').length >= 4;
-  }
-
   async function ocrTick(){
-    if(!S.running || S.mode !== 'camera') return;
+    if(!S.running || !S.useCam || !worker) return;
     try{
       if(grabFrame()){
         const {data} = await worker.recognize(proc);
         const text = cleanOCR(data.text || '');
-        if(text && looksReal(text) && data.confidence >= S.minConf){
+        const words = realWords(text);
+        const conf = Math.round(data.confidence || 0);
+        diag('read', text ? 'ok' : 'idle', text ? `${text}  (${conf}%)` : '(لا توجد كتابة)');
+        const allWords = text.split(' ').filter(Boolean).length || 1;
+        if(words.length >= 1 && words.join('').length >= 4 && words.length / allWords >= 0.6 && conf >= S.minConf){
           const n = norm(text);
-          if(similar(n, S.lastSrc) < 0.8){
-            S.lastSrc = n;
-            translateAndShow(text, true);
-          }
+          if(similar(n, S.lastOcr) < 0.8){ S.lastOcr = n; translateAndShow(text, true, 'cam'); }
         }
       }
-    }catch(e){ console.warn(e); }
-    if(S.running && S.mode === 'camera') loopTimer = setTimeout(ocrTick, 250);
+    }catch(e){ diag('read','bad','خطأ في القراءة: ' + (e && e.message || e)); }
+    if(S.running && S.useCam) loopTimer = setTimeout(ocrTick, 200);
   }
 
-  /* ---------- Microphone ---------- */
+  /* ---------- microphone ---------- */
   function startMic(){
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if(!SR) throw new Error('الميكروفون غير مدعوم في هذا المتصفح. استخدم Safari على الآيباد.');
+    if(!SR){ diag('mic','bad','غير مدعوم في هذا المتصفح'); return; }
     rec = new SR();
     rec.lang = 'en-US'; rec.continuous = true; rec.interimResults = true;
     let lastInterim = 0;
+    rec.onstart = () => diag('mic','ok','يستمع الآن');
     rec.onresult = (e) => {
       for(let i = e.resultIndex; i < e.results.length; i++){
         const r = e.results[i], t = r[0].transcript.trim();
         if(!t) continue;
-        if(r.isFinal){ translateAndShow(t, true); }
+        diag('heard','ok', t);
+        if(r.isFinal) translateAndShow(t, true, 'mic');
         else{
-          $('#en').textContent = t;
           const now = Date.now();
-          if(now - lastInterim > 700 && t.split(' ').length >= 3){ lastInterim = now; translateAndShow(t, false); }
+          if(now - lastInterim > 700 && t.split(' ').length >= 3){ lastInterim = now; translateAndShow(t, false, 'mic'); }
         }
       }
     };
     rec.onerror = (e) => {
-      if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
-        showError('لم يُسمح بالميكروفون. من إعدادات الآيباد ← Safari ← الميكروفون، اختر «سماح».');
-        stop();
+      if(e.error === 'not-allowed'){
+        diag('mic','bad','مرفوض'); showError('لم يُسمح بالميكروفون. من الإعدادات ← Safari ← الميكروفون اختر «سماح».'); rec.onend = null;
+      }else if(e.error === 'service-not-allowed'){
+        diag('mic','bad','الخدمة مقفلة'); showError('الآيباد يمنع التعرف على الكلام. فعّل «الإملاء» من: الإعدادات ← عام ← لوحة المفاتيح ← تفعيل الإملاء، ثم أعد المحاولة.'); rec.onend = null;
+      }else if(e.error !== 'no-speech' && e.error !== 'aborted'){
+        diag('mic','busy','خطأ: ' + e.error + ' (يعيد المحاولة)');
       }
     };
-    rec.onend = () => { if(S.running && S.mode === 'mic') setTimeout(() => { try{ rec.start(); }catch{} }, 150); };
-    rec.start();
-    $('#micView').classList.add('on');
-    $('#micText').textContent = 'أستمع الآن…';
+    rec.onend = () => { if(S.running && S.useMic) setTimeout(() => { try{ rec.start(); }catch{} }, 250); };
+    try{ rec.start(); diag('mic','busy','يبدأ…'); }
+    catch(e){ diag('mic','bad','لم يبدأ: ' + (e && e.message || e)); }
   }
 
-  /* ---------- Start / stop ---------- */
+  /* ---------- start / stop ---------- */
   async function start(){
     showError('');
-    S.running = true; S.lastSrc = '';
+    if(!S.useCam && !S.useMic){ showError('اختر «الكتابة» أو «الصوت» أو الاثنين.'); return; }
+    S.running = true; S.lastOcr = '';
     const btn = $('#startBtn'); btn.textContent = 'إيقاف'; btn.className = 'btn stop';
-    try{
-      if(navigator.wakeLock) navigator.wakeLock.request('screen').then(l => wakeLock = l).catch(() => {});
-      if(S.mode === 'camera'){
-        await startCamera();
-        if(!S.running) return;
-        setStatus('يقرأ الشاشة', 'live');
-        ocrTick();
-      }else{
-        startMic();
-        setStatus('يستمع', 'live');
-      }
-    }catch(e){
-      showError(e && e.name === 'NotAllowedError'
-        ? 'لم يُسمح بالكاميرا. من إعدادات الآيباد ← Safari ← الكاميرا، اختر «سماح» ثم أعد تحميل الصفحة.'
-        : (e && e.message) || 'حدث خطأ غير متوقع');
-      stop();
+    if(navigator.wakeLock) navigator.wakeLock.request('screen').then(l => wakeLock = l).catch(() => {});
+    // the mic must start straight from the tap (Safari rule), before anything is awaited
+    if(S.useMic) startMic();
+    if(S.useCam){
+      try{ await startCamera(); if(S.running) ocrTick(); }
+      catch(e){ showError(e && e.message || String(e)); if(!S.useMic) stop(); }
     }
   }
   function stop(){
     S.running = false;
     clearTimeout(loopTimer);
-    if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; video.srcObject = null; $('#camHint').hidden = false; }
-    if(rec){ rec.onend = null; try{ rec.stop(); }catch{} rec = null; }
-    $('#micView').classList.remove('on'); $('#micText').textContent = 'ضع الآيباد قريباً من سماعة التلفزيون';
+    if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; video.srcObject = null; $('#camHint').hidden = false; diag('cam','idle','متوقفة'); }
+    if(rec){ rec.onend = null; try{ rec.stop(); }catch{} rec = null; diag('mic','idle','متوقف'); }
     if(wakeLock){ wakeLock.release().catch(() => {}); wakeLock = null; }
     const btn = $('#startBtn'); btn.textContent = 'ابدأ الترجمة'; btn.className = 'btn primary';
-    if(!$('#status').classList.contains('err')) setStatus('متوقف');
   }
   $('#startBtn').onclick = () => S.running ? stop() : start();
   document.addEventListener('visibilitychange', () => {
@@ -472,8 +481,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       navigator.wakeLock.request('screen').then(l => wakeLock = l).catch(() => {});
   });
 
-  // exposed for testing only
-  window.__gt = {translate, cleanOCR, looksReal, similar, norm};
+  window.__gt = {translate, cleanOCR, realWords, similar, norm, otsu, loadWorker};
 })();
 </script>
 </body>
