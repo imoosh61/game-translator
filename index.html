@@ -63,6 +63,12 @@ h1 span{color:var(--accent)}
 .cam-sub .s-ar:empty,.cam-sub .s-en:empty{display:none}
 .cam-tools{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .cam-tools .btn{padding:6px 12px;font-size:14px}
+.zoom{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 10px;flex:1 1 220px;min-width:0}
+.zoom button{border:0;background:var(--line);width:32px;height:32px;border-radius:8px;font-size:18px;font-weight:700;cursor:pointer;flex:none}
+.zoom input{flex:1;min-width:60px}
+.zoom output{font-family:var(--font-mono);color:var(--accent);min-width:3.2em;text-align:center}
+.zoom input:disabled,.zoom button:disabled{opacity:.4}
+.cam video{transform-origin:50% 50%}
 #camCard.full{position:fixed;inset:0;z-index:50;border-radius:0;border:0;background:#000;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);display:flex;flex-direction:column}
 #camCard.full h2,#camCard.full .hint-line,#camCard.full #proc{display:none}
 #camCard.full .cam-tools{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:calc(env(safe-area-inset-left,0px) + 10px);z-index:2;margin:0}
@@ -120,6 +126,12 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <div class="cam-tools">
       <button id="fullBtn" class="btn">⛶ ملء الشاشة</button>
       <button id="boxBtn" class="btn">إظهار مربع القراءة</button>
+      <div class="zoom" title="تكبير الكاميرا">
+        <button id="zoomOut" aria-label="تصغير" disabled>−</button>
+        <input id="zoom" type="range" min="1" max="4" step="0.1" value="1" aria-label="تكبير الكاميرا" disabled>
+        <button id="zoomIn" aria-label="تكبير" disabled>+</button>
+        <output id="zoomOut2" dir="ltr">1.0×</output>
+      </div>
     </div>
     <div class="cam" id="camWrap">
       <video id="video" playsinline muted autoplay></video>
@@ -332,14 +344,56 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     const s = Math.min(r.width/vw, r.height/vh), w = vw*s, h = vh*s;
     return {left:r.left+(r.width-w)/2, top:r.top+(r.height-h)/2, w, h, ox:(r.width-w)/2, oy:(r.height-h)/2};
   }
+  // digital zoom (when the camera has no real zoom): the video is scaled around its centre,
+  // so a point seen at fraction f on screen is at 0.5 + (f-0.5)/z in the real frame.
+  let digitalZoom = 1;
   function drawBox(){
-    const v = videoRect(), g = S.region;
-    box.style.left = (v.ox + g.x*v.w)+'px'; box.style.top = (v.oy + g.y*v.h)+'px';
-    box.style.width = (g.w*v.w)+'px'; box.style.height = (g.h*v.h)+'px';
+    const v = videoRect(), g = S.region, z = digitalZoom;
+    const x = 0.5 + (g.x - 0.5)*z, y = 0.5 + (g.y - 0.5)*z;
+    box.style.left = (v.ox + x*v.w)+'px'; box.style.top = (v.oy + y*v.h)+'px';
+    box.style.width = (g.w*z*v.w)+'px'; box.style.height = (g.h*z*v.h)+'px';
   }
   let drag = null;
   const clamp = v => Math.max(0, Math.min(1, v));
-  const toFrac = e => { const v = videoRect(); return {x:clamp((e.clientX-v.left)/v.w), y:clamp((e.clientY-v.top)/v.h)}; };
+  const toFrac = e => {
+    const v = videoRect(), z = digitalZoom;
+    const fx = (e.clientX-v.left)/v.w, fy = (e.clientY-v.top)/v.h;
+    return {x:clamp(0.5 + (fx-0.5)/z), y:clamp(0.5 + (fy-0.5)/z)};
+  };
+
+  /* ---------- zoom ---------- */
+  let zoomTrack = null, hwZoom = false;
+  const zoomEl = $('#zoom');
+  function setZoomEnabled(on){ ['#zoom','#zoomIn','#zoomOut'].forEach(s => $(s).disabled = !on); }
+  async function applyZoom(v){
+    v = Math.max(Number(zoomEl.min), Math.min(Number(zoomEl.max), v));
+    zoomEl.value = v; $('#zoomOut2').textContent = v.toFixed(1) + '×';
+    store.set('zoom', v);
+    if(hwZoom && zoomTrack){
+      try{ await zoomTrack.applyConstraints({advanced:[{zoom:v}]}); digitalZoom = 1; }
+      catch{ hwZoom = false; digitalZoom = v; }
+    }else{
+      digitalZoom = v;
+    }
+    video.style.transform = digitalZoom > 1 ? `scale(${digitalZoom})` : '';
+    drawBox(); S.lastOcr = '';
+  }
+  function setupZoom(){
+    zoomTrack = stream && stream.getVideoTracks()[0];
+    let caps = {};
+    try{ caps = zoomTrack && zoomTrack.getCapabilities ? zoomTrack.getCapabilities() : {}; }catch{}
+    if(caps.zoom && caps.zoom.max > caps.zoom.min){
+      hwZoom = true;
+      zoomEl.min = caps.zoom.min; zoomEl.max = Math.min(caps.zoom.max, 10); zoomEl.step = caps.zoom.step || 0.1;
+    }else{
+      hwZoom = false; zoomEl.min = 1; zoomEl.max = 4; zoomEl.step = 0.1;
+    }
+    setZoomEnabled(true);
+    applyZoom(store.get('zoom', 1));
+  }
+  zoomEl.addEventListener('input', () => applyZoom(Number(zoomEl.value)));
+  $('#zoomIn').onclick = () => applyZoom(Number(zoomEl.value) + 0.5);
+  $('#zoomOut').onclick = () => applyZoom(Number(zoomEl.value) - 0.5);
   overlay.addEventListener('pointerdown', e => { drag = toFrac(e); overlay.setPointerCapture(e.pointerId); });
   overlay.addEventListener('pointermove', e => {
     if(!drag) return; const p = toFrac(e);
@@ -385,8 +439,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     video.srcObject = stream;
     try{ await video.play(); }catch{}
     $('#camHint').hidden = true;
-    drawBox();
-    diag('cam','ok','تعمل');
+    setupZoom();
+    diag('cam','ok', hwZoom ? 'تعمل (تكبير حقيقي)' : 'تعمل (تكبير رقمي)');
     await loadWorker();
   }
 
@@ -513,6 +567,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     S.running = false;
     clearTimeout(loopTimer);
     if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; video.srcObject = null; $('#camHint').hidden = false; diag('cam','idle','متوقفة'); }
+    zoomTrack = null; setZoomEnabled(false); digitalZoom = 1; video.style.transform = ''; drawBox();
     if(rec){ rec.onend = null; try{ rec.stop(); }catch{} rec = null; diag('mic','idle','متوقف'); }
     if(wakeLock){ wakeLock.release().catch(() => {}); wakeLock = null; }
     const btn = $('#startBtn'); btn.textContent = 'ابدأ الترجمة'; btn.className = 'btn primary';
