@@ -583,7 +583,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         else{
           showLive(t);
           const now = Date.now();
-          if(now - lastInterim > 300 && t !== lastInterimText && t.split(' ').length >= 2){
+          if(now - lastInterim > 150 && t !== lastInterimText){
             lastInterim = now; lastInterimText = t; translateAndShow(t, false, 'mic');
           }
         }
@@ -623,9 +623,19 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       }, 200);
     };
   }
+  // Safari only lets the mic start from a tap. So any tap anywhere on the page starts
+  // (or restarts) listening automatically, unless the viewer turned it off on purpose.
+  let micUserStopped = false;
+  document.addEventListener('pointerdown', (e) => {
+    if(micOn || micUserStopped || !S.useMic) return;
+    if(e.target.closest('#micBtn, #levelBtn, #startBtn, #useMic')) return;
+    mlog('تشغيل تلقائي للسماع');
+    try{ startMic(); }catch{}
+  }, true);
   $('#micBtn').addEventListener('click', () => {
     mlog('ضغطت زر السماع');
     showError('');
+    micUserStopped = micOn;
     try{ micOn ? stopMic() : startMic(); }
     catch(e){ mlog('خطأ غير متوقع: ' + (e && e.message || e)); showError('خطأ: ' + (e && e.message || e)); }
   });
@@ -674,7 +684,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     const btn = $('#startBtn'); btn.textContent = 'إيقاف'; btn.className = 'btn stop';
     if(navigator.wakeLock) navigator.wakeLock.request('screen').then(l => wakeLock = l).catch(() => {});
     // the mic must start straight from the tap (Safari rule), before anything is awaited
-    if(S.useMic) startMic();
+    if(S.useMic){ micUserStopped = false; startMic(); }
     if(S.useCam){
       try{ await startCamera(); if(S.running) ocrTick(); }
       catch(e){ showError(e && e.message || String(e)); if(!S.useMic) stop(); }
@@ -685,6 +695,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     clearTimeout(loopTimer);
     if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; video.srcObject = null; $('#camHint').hidden = false; diag('cam','idle','متوقفة'); }
     zoomTrack = null; setZoomEnabled(false); digitalZoom = 1; video.style.transform = ''; drawBox();
+    micUserStopped = true;
     if(rec || micOn) stopMic();
     if(wakeLock){ wakeLock.release().catch(() => {}); wakeLock = null; }
     const btn = $('#startBtn'); btn.textContent = 'ابدأ الترجمة'; btn.className = 'btn primary';
